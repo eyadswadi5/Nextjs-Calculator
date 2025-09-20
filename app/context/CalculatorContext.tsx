@@ -1,21 +1,13 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { evaluate as mathEvaluate } from "mathjs";
-
 
 type ButtonType = "digit" | "operator" | "action";
 
 export type ButtonPress = {
 	type: ButtonType;
 	label: string;
-};
-
-export type HistoryItem = {
-    id: string;
-    expression: string;
-    result: string;
-    ts: number;
 };
 
 type CalculatorContextValue = {
@@ -25,8 +17,6 @@ type CalculatorContextValue = {
 	handlePress: (press: ButtonPress) => void;
 	evaluateNow: () => void;
 	clear: () => void;
-	history: HistoryItem[];
-	clearHistory: () => void;
 };
 
 const CalculatorContext = createContext<CalculatorContextValue | null>(null);
@@ -37,6 +27,7 @@ function sanitizeExpression(expr: string): string {
 		.replace(/÷/g, "/")
 		.replace(/−/g, "-");
 
+	// Convert simple percent patterns like 50% -> (50/100)
 	s = s.replace(/(\d+(?:\.\d+)?)%/g, "($1/100)");
 	return s;
 }
@@ -44,23 +35,6 @@ function sanitizeExpression(expr: string): string {
 export function CalculatorProvider({ children }: { children: React.ReactNode }) {
 	const [expression, setExpression] = useState("");
 	const [result, setResult] = useState("0");
-	const [history, setHistory] = useState<HistoryItem[]>([]);
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem("calc_history");
-            if (raw) {
-                const parsed: HistoryItem[] = JSON.parse(raw);
-                if (Array.isArray(parsed)) setHistory(parsed);
-            }
-        } catch {}
-    }, []);
-
-    useEffect(() => {
-        try {
-            localStorage.setItem("calc_history", JSON.stringify(history));
-        } catch {}
-    }, [history]);
 
 	const clear = useCallback(() => {
 		setExpression("");
@@ -77,11 +51,6 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
 			const sanitized = sanitizeExpression(expr);
 			const value = mathEvaluate(sanitized);
 			const out = typeof value === "number" ? String(value) : String(value);
-
-			setHistory((prev) => [
-				{ id: crypto.randomUUID(), expression: expr, result: out, ts: Date.now() },
-				...prev,
-			]);
 			setResult(out);
 		} catch {
 			setResult("Error");
@@ -153,12 +122,9 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
 		[clear, evaluateNow]
 	);
 
-
-	const clearHistory = useCallback(() => setHistory([]), []);
-
 	const value = useMemo(
-		() => ({ expression, result, setExpression, handlePress, evaluateNow, clear, history, clearHistory }),
-		[expression, result, handlePress, evaluateNow, clear, history, clearHistory]
+		() => ({ expression, result, setExpression, handlePress, evaluateNow, clear }),
+		[expression, result, handlePress, evaluateNow, clear]
 	);
 
 	return <CalculatorContext.Provider value={value}>{children}</CalculatorContext.Provider>;
